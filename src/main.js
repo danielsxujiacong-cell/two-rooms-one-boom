@@ -4,10 +4,17 @@ import './styles.css';
 const GAME_START = new Date('2026-10-05T00:00:00+08:00').getTime();
 const CONNECTION_RETRY_MS = 4500;
 const COUNTER_POLL_MS = 18000;
-const MAX_STICKERS = 6;
+const MAX_STICKERS = 8;
 const MAX_SHOCKWAVES = 3;
 const EMOJIS = ['💥', '💣', '🔥', '✨', '⚡️', '🎉'];
 const STICKER_WORD_PROBABILITY = 0.12;
+const STICKER_PLUS_PROBABILITY = 0.22;
+const STICKER_FLIGHT_MS = 1600;
+const STICKER_ARC_MS = 1200;
+const STICKER_LIFETIME_MS = 5000;
+const STICKER_FADE_START_MS = 4500;
+const STICKER_FADE_MS = 500;
+const FULL_TURN = Math.PI * 2;
 const elements = {
   button: document.querySelector('#boom-button'),
   buttonStage: document.querySelector('#button-stage'),
@@ -26,8 +33,10 @@ let channel = null;
 let buttonMotion = null;
 let counterMotion = null;
 let haloTimer = null;
-const stickerAnimations = new Map();
+const activeStickers = new Map();
 const shockwaveAnimations = new Map();
+const recentDirections = [];
+let stickerFrameId = 0;
 
 function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -120,7 +129,7 @@ function updateCountdown() {
 function discardAnimatedElement(element, animations) {
   const animation = animations.get(element);
   animations.delete(element);
-  if (animation) {
+  if (animation && typeof animation.cancel === 'function') {
     animation.onfinish = null;
     animation.oncancel = null;
     animation.cancel();
@@ -171,70 +180,170 @@ function spawnShockwave() {
   trackAnimatedElement(wave, shockwaveAnimations, animation);
 }
 
-function createSticker(label, options = {}) {
+function angularDistance(left, right) {
+  return Math.abs(Math.atan2(Math.sin(left - right), Math.cos(left - right)));
+}
+
+function randomLaunchDirection() {
+  let angle = Math.random() * FULL_TURN;
+  for (let attempt = 0; attempt < 7; attempt += 1) {
+    if (!recentDirections.some((recent) => angularDistance(angle, recent) < 0.52)) break;
+    angle = Math.random() * FULL_TURN;
+  }
+  recentDirections.push(angle);
+  if (recentDirections.length > MAX_STICKERS) recentDirections.shift();
+  return angle;
+}
+
+function chooseStickerLabel() {
+  const roll = Math.random();
+  if (roll < STICKER_PLUS_PROBABILITY) return '+1';
+  if (roll < STICKER_PLUS_PROBABILITY + STICKER_WORD_PROBABILITY) return '啪！';
+  return EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+}
+
+function getStickerBounds(sticker, scale, centerX, centerY, stageRect) {
+  const halfWidth = sticker.offsetWidth * scale / 2;
+  const halfHeight = sticker.offsetHeight * scale / 2;
+  const horizontalLimit = Math.max(0, Math.min(
+    stageRect.width / 2 + 56,
+    centerX - halfWidth - 10,
+    window.innerWidth - centerX - halfWidth - 10,
+  ));
+  const verticalLimit = stageRect.height / 2 + 56;
+  let minY = Math.max(
+    -verticalLimit,
+    elements.countdownValue.getBoundingClientRect().bottom + halfHeight + 8 - centerY,
+  );
+  let maxY = Math.min(
+    verticalLimit,
+    elements.counter.getBoundingClientRect().top - halfHeight - 10 - centerY,
+  );
+  if (minY >= maxY) {
+    minY = -verticalLimit;
+    maxY = verticalLimit;
+  }
+  return { minX: -horizontalLimit, maxX: horizontalLimit, minY, maxY };
+}
+
+function resolveStickerBoundary(state) {
+  let hitX = false;
+  let hitY = false;
+  if (state.x < state.bounds.minX) { state.x = state.bounds.minX; hitX = true; }
+  if (state.x > state.bounds.maxX) { state.x = state.bounds.maxX; hitX = true; }
+  if (state.y < state.bounds.minY) { state.y = state.bounds.minY; hitY = true; }
+  if (state.y > state.bounds.maxY) { state.y = state.bounds.maxY; hitY = true; }
+  if (!hitX && !hitY) return;
+
+  if (state.bounces < state.maxBounces) {
+    const restitution = randomBetween(0.28, 0.42);
+    if (hitX) state.vx = -state.vx * restitution;
+    else state.vx *= 0.86;
+    if (hitY) state.vy = -state.vy * restitution;
+    else state.vy *= 0.86;
+    state.angularVelocity *= 0.68;
+    state.bounces += 1;
+  } else {
+    if (hitX) state.vx = 0;
+    if (hitY) state.vy = 0;
+    state.angularVelocity *= 0.72;
+  }
+}
+
+function stickerPopScale(elapsed) {
+  if (elapsed < 200) {
+    const progress = elapsed / 200;
+    return 0.68 + 0.44 * (1 - (1 - progress) ** 2);
+  }
+  if (elapsed < 360) return 1.12 - 0.12 * ((elapsed - 200) / 160);
+  return 1;
+}
+
+function updateStickerFrames(timestamp) {
+  stickerFrameId = 0;
+  for (const [sticker, state] of activeStickers) {
+    const elapsed = timestamp - state.startedAt;
+    if (elapsed >= STICKER_LIFETIME_MS) {
+      discardAnimatedElement(sticker, activeStickers);
+      continue;
+    }
+
+    const deltaTime = Math.min((timestamp - state.lastUpdate) / 1000, 0.032);
+    state.lastUpdate = timestamp;
+    if (!state.reducedMotion && elapsed < STICKER_FLIGHT_MS && !state.settled) {
+      const settling = elapsed >= STICKER_ARC_MS;
+      const drag = Math.exp(-(settling ? 4.8 : 1.15) * deltaTime);
+      state.vx *= drag;
+      state.vy = state.vy * drag + state.gravity * (settling ? 0.22 : 1) * deltaTime;
+      state.x += state.vx * deltaTime;
+      state.y += state.vy * deltaTime;
+
+      if (settling) {
+        const angularForce = (state.restRotation - state.rotation) * 24 - state.angularVelocity * 8;
+        state.angularVelocity += angularForce * deltaTime;
+      } else {
+        state.angularVelocity *= Math.exp(-1.8 * deltaTime);
+      }
+      state.rotation += state.angularVelocity * deltaTime;
+      resolveStickerBoundary(state);
+    } else if (!state.settled) {
+      state.vx = 0;
+      state.vy = 0;
+      state.angularVelocity = 0;
+      state.rotation = state.restRotation;
+      state.settled = true;
+    }
+
+    const fadeProgress = Math.max(0, (elapsed - STICKER_FADE_START_MS) / STICKER_FADE_MS);
+    sticker.style.opacity = String(1 - fadeProgress);
+    sticker.style.transform = `translate(-50%,-50%) translate3d(${state.x}px,${state.y}px,0) rotate(${state.rotation}deg) scale(${state.scale * stickerPopScale(elapsed)})`;
+  }
+  if (activeStickers.size) stickerFrameId = window.requestAnimationFrame(updateStickerFrames);
+}
+
+function spawnPhysicalSticker() {
+  makeRoom(activeStickers, MAX_STICKERS);
+  const label = chooseStickerLabel();
   const sticker = document.createElement('span');
-  sticker.className = 'sticker-chip' + (options.isPlus ? ' sticker-plus' : '') + (options.isWord ? ' sticker-word' : '');
+  sticker.className = 'sticker-chip' + (label === '+1' ? ' sticker-plus' : '') + (label === '啪！' ? ' sticker-word' : '');
   sticker.textContent = label;
   sticker.setAttribute('aria-hidden', 'true');
   sticker.style.zIndex = String(3 + Math.floor(Math.random() * 3));
   elements.stickerLayer.append(sticker);
 
-  const animation = sticker.animate(
-    options.reducedMotion
-      ? [{ opacity: 0 }, { opacity: 1, offset: 0.18 }, { opacity: 0 }]
-      : [
-          { opacity: 0, transform: `translate(-50%,-50%) translate(${options.startX}px,${options.startY + 8}px) scale(${options.scale * 0.66}) rotate(${options.rotation - 8}deg)` },
-          { opacity: 1, transform: `translate(-50%,-50%) translate(${options.startX}px,${options.startY}px) scale(${options.scale * 1.13}) rotate(${options.rotation}deg)`, offset: 0.2, easing: 'cubic-bezier(.08,.78,.2,1)' },
-          { opacity: 1, transform: `translate(-50%,-50%) translate(${options.endX}px,${options.endY}px) scale(${options.scale}) rotate(${options.rotation + options.driftRotation}deg)`, offset: 0.65 },
-          { opacity: 0, transform: `translate(-50%,-50%) translate(${options.endX + options.side * 10}px,${options.endY - 12}px) scale(${options.scale * 0.96}) rotate(${options.rotation + options.driftRotation + 4}deg)` },
-        ],
-    { duration: options.reducedMotion ? 160 : options.duration, delay: options.delay, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'both' },
-  );
-  trackAnimatedElement(sticker, stickerAnimations, animation);
-}
-
-function spawnStickerBurst() {
-  const reducedMotion = prefersReducedMotion();
-  const stickerCount = 2 + Math.floor(Math.random() * 2);
-  makeRoom(stickerAnimations, MAX_STICKERS, stickerCount);
-
-  const radius = elements.button.offsetWidth / 2;
-  createSticker('+1', {
-    isPlus: true,
-    reducedMotion,
-    startX: randomBetween(-radius * 0.08, radius * 0.08),
-    startY: -radius * 0.66,
-    endX: randomBetween(-15, 15),
-    endY: -radius * randomBetween(1.28, 1.42),
-    side: 0,
-    rotation: randomBetween(-9, 9),
-    driftRotation: randomBetween(-5, 5),
-    scale: randomBetween(0.88, 1.04),
-    duration: randomBetween(620, 800),
-    delay: 0,
-  });
-
-  const paths = [
-    { side: -1, startX: -radius * 0.36, startY: -radius * 0.55, endX: -radius * randomBetween(0.72, 0.82), endY: -radius * randomBetween(1.1, 1.22) },
-    { side: 0, startX: randomBetween(-radius * 0.16, radius * 0.16), startY: -radius * 0.72, endX: randomBetween(-radius * 0.16, radius * 0.16), endY: -radius * randomBetween(1.34, 1.46) },
-    { side: 1, startX: radius * 0.36, startY: -radius * 0.55, endX: radius * randomBetween(0.72, 0.82), endY: -radius * randomBetween(1.1, 1.22) },
-  ];
-  const extraCount = stickerCount - 1;
-  for (let index = 0; index < extraCount; index += 1) {
-    const pathIndex = Math.floor(Math.random() * paths.length);
-    const path = paths.splice(pathIndex, 1)[0];
-    const isWord = Math.random() < STICKER_WORD_PROBABILITY;
-    createSticker(isWord ? '啪！' : EMOJIS[Math.floor(Math.random() * EMOJIS.length)], {
-      ...path,
-      isWord,
-      reducedMotion,
-      rotation: randomBetween(-14, 14),
-      driftRotation: randomBetween(-9, 9),
-      scale: randomBetween(0.82, 1.12),
-      duration: randomBetween(600, 900),
-      delay: randomBetween(12, 46),
-    });
-  }
+  const stageRect = elements.buttonStage.getBoundingClientRect();
+  const buttonRect = elements.button.getBoundingClientRect();
+  const centerX = stageRect.left + stageRect.width / 2;
+  const centerY = stageRect.top + stageRect.height / 2;
+  const direction = randomLaunchDirection();
+  const scale = randomBetween(0.88, 1.1);
+  const bounds = getStickerBounds(sticker, scale, centerX, centerY, stageRect);
+  const radius = Math.max(0, buttonRect.width / 2 - randomBetween(2, 8));
+  const x = Math.max(bounds.minX, Math.min(bounds.maxX, Math.cos(direction) * radius));
+  const y = Math.max(bounds.minY, Math.min(bounds.maxY, Math.sin(direction) * radius));
+  const speed = randomBetween(270, 360);
+  const now = performance.now();
+  const rotation = randomBetween(-14, 14);
+  const state = {
+    bounds,
+    bounces: 0,
+    gravity: randomBetween(380, 520),
+    lastUpdate: now,
+    maxBounces: 1 + Math.floor(Math.random() * 2),
+    reducedMotion: prefersReducedMotion(),
+    restRotation: rotation + randomBetween(-24, 24),
+    rotation,
+    scale,
+    settled: false,
+    startedAt: now,
+    angularVelocity: randomBetween(-320, 320),
+    vx: Math.cos(direction) * speed,
+    vy: Math.sin(direction) * speed,
+    x,
+    y,
+  };
+  activeStickers.set(sticker, state);
+  if (!stickerFrameId) stickerFrameId = window.requestAnimationFrame(updateStickerFrames);
 }
 
 function playFeedback() {
@@ -261,7 +370,7 @@ function playFeedback() {
   window.clearTimeout(haloTimer);
   haloTimer = window.setTimeout(() => elements.buttonStage.classList.remove('is-energized'), 250);
   spawnShockwave();
-  spawnStickerBurst();
+  spawnPhysicalSticker();
   if (!reducedMotion && typeof navigator.vibrate === 'function') navigator.vibrate(12);
 }
 

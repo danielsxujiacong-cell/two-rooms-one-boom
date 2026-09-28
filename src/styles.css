@@ -163,10 +163,12 @@ h1 {
 }
 
 .button-title {
-  font-size: 17px;
-  font-weight: 750;
-  letter-spacing: .18em;
-  text-indent: .18em;
+  color: #fff0d2;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-indent: .07em;
+  white-space: nowrap;
 }
 
 .sticker-layer {
