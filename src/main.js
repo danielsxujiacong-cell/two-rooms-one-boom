@@ -4,14 +4,17 @@ import './styles.css';
 const GAME_START = new Date('2026-10-05T00:00:00+08:00').getTime();
 const CONNECTION_RETRY_MS = 4500;
 const COUNTER_POLL_MS = 18000;
-const MAX_FEEDBACKS = 12;
+const MAX_STICKERS = 6;
+const MAX_SHOCKWAVES = 3;
 const EMOJIS = ['💥', '💣', '🔥', '✨', '⚡️', '🎉'];
+const STICKER_WORD_PROBABILITY = 0.12;
 const elements = {
   button: document.querySelector('#boom-button'),
   buttonStage: document.querySelector('#button-stage'),
   connection: document.querySelector('#connection-note'),
   countdownValue: document.querySelector('#countdown-value'),
   counter: document.querySelector('#counter-value'),
+  stickerLayer: document.querySelector('#sticker-layer'),
 };
 
 let supabase = null;
@@ -23,7 +26,8 @@ let channel = null;
 let buttonMotion = null;
 let counterMotion = null;
 let haloTimer = null;
-const feedbackAnimations = new Map();
+const stickerAnimations = new Map();
+const shockwaveAnimations = new Map();
 
 function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -113,54 +117,124 @@ function updateCountdown() {
   elements.countdownValue.textContent = days + '天 ' + String(hours).padStart(2, '0') + '小时 ' + String(minutes).padStart(2, '0') + '分 ' + String(seconds).padStart(2, '0') + '秒';
 }
 
-function removeFeedback(element) {
-  feedbackAnimations.get(element)?.cancel();
-  feedbackAnimations.delete(element);
+function discardAnimatedElement(element, animations) {
+  const animation = animations.get(element);
+  animations.delete(element);
+  if (animation) {
+    animation.onfinish = null;
+    animation.oncancel = null;
+    animation.cancel();
+  }
   element.remove();
 }
 
-function showTapFeedback() {
-  while (feedbackAnimations.size >= MAX_FEEDBACKS) {
-    removeFeedback(feedbackAnimations.keys().next().value);
+function makeRoom(animations, capacity, reserved = 1) {
+  while (animations.size + reserved > capacity) {
+    discardAnimatedElement(animations.keys().next().value, animations);
   }
+}
 
-  const feedback = document.createElement('span');
-  feedback.className = 'tap-feedback';
-  feedback.setAttribute('aria-hidden', 'true');
-
-  const emoji = document.createElement('span');
-  emoji.className = 'feedback-emoji';
-  emoji.textContent = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-  const plusOne = document.createElement('span');
-  plusOne.className = 'feedback-plus';
-  plusOne.textContent = '+1';
-  feedback.append(emoji, plusOne);
-  elements.buttonStage.append(feedback);
-
-  const reducedMotion = prefersReducedMotion();
-  const angle = Math.random() * Math.PI * 2;
-  const distance = 44 + Math.random() * 46;
-  const dx = Math.round(Math.cos(angle) * distance);
-  const dy = Math.round(Math.sin(angle) * distance - 9);
-  const rotation = Math.round((Math.random() - 0.5) * 34);
-  const startRotation = Math.round((Math.random() - 0.5) * 14);
-  const animation = feedback.animate(
-    reducedMotion
-      ? [{ opacity: 0 }, { opacity: 1, offset: 0.25 }, { opacity: 0 }]
-      : [
-          { opacity: 0, transform: `translate(-50%,-50%) translate(0,5px) scale(.68) rotate(${startRotation}deg)` },
-          { opacity: 1, transform: `translate(-50%,-50%) translate(${Math.round(dx * 0.28)}px,${Math.round(dy * 0.28)}px) scale(1.14) rotate(${Math.round(rotation * 0.4)}deg)`, offset: 0.24 },
-          { opacity: 1, transform: `translate(-50%,-50%) translate(${dx}px,${dy}px) scale(1) rotate(${rotation}deg)`, offset: 0.5 },
-          { opacity: 0, transform: `translate(-50%,-50%) translate(${Math.round(dx * 1.2)}px,${dy - 22}px) scale(.96) rotate(${rotation + startRotation}deg)` },
-        ],
-    { duration: reducedMotion ? 180 : 760, easing: 'cubic-bezier(.18,.7,.25,1)', fill: 'both' },
-  );
-  feedbackAnimations.set(feedback, animation);
-  animation.onfinish = () => removeFeedback(feedback);
-  animation.oncancel = () => {
-    feedbackAnimations.delete(feedback);
-    feedback.remove();
+function trackAnimatedElement(element, animations, animation) {
+  animations.set(element, animation);
+  const remove = () => {
+    if (animations.get(element) !== animation) return;
+    animations.delete(element);
+    element.remove();
   };
+  animation.onfinish = remove;
+  animation.oncancel = remove;
+}
+
+function randomBetween(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+function spawnShockwave() {
+  makeRoom(shockwaveAnimations, MAX_SHOCKWAVES);
+  const wave = document.createElement('span');
+  wave.className = 'shockwave';
+  wave.setAttribute('aria-hidden', 'true');
+  wave.style.width = elements.button.offsetWidth + 'px';
+  wave.style.height = elements.button.offsetHeight + 'px';
+  elements.buttonStage.append(wave);
+  const reducedMotion = prefersReducedMotion();
+  const animation = wave.animate(
+    reducedMotion
+      ? [{ opacity: 0.12 }, { opacity: 0 }]
+      : [
+          { opacity: 0, transform: 'translate(-50%,-50%) scale(.88)' },
+          { opacity: 0.28, offset: 0.18 },
+          { opacity: 0, transform: 'translate(-50%,-50%) scale(1.2)' },
+        ],
+    { duration: reducedMotion ? 160 : 370, easing: 'cubic-bezier(.2,.7,.25,1)', fill: 'both' },
+  );
+  trackAnimatedElement(wave, shockwaveAnimations, animation);
+}
+
+function createSticker(label, options = {}) {
+  const sticker = document.createElement('span');
+  sticker.className = 'sticker-chip' + (options.isPlus ? ' sticker-plus' : '') + (options.isWord ? ' sticker-word' : '');
+  sticker.textContent = label;
+  sticker.setAttribute('aria-hidden', 'true');
+  sticker.style.zIndex = String(3 + Math.floor(Math.random() * 3));
+  elements.stickerLayer.append(sticker);
+
+  const animation = sticker.animate(
+    options.reducedMotion
+      ? [{ opacity: 0 }, { opacity: 1, offset: 0.18 }, { opacity: 0 }]
+      : [
+          { opacity: 0, transform: `translate(-50%,-50%) translate(${options.startX}px,${options.startY + 8}px) scale(${options.scale * 0.66}) rotate(${options.rotation - 8}deg)` },
+          { opacity: 1, transform: `translate(-50%,-50%) translate(${options.startX}px,${options.startY}px) scale(${options.scale * 1.13}) rotate(${options.rotation}deg)`, offset: 0.2, easing: 'cubic-bezier(.08,.78,.2,1)' },
+          { opacity: 1, transform: `translate(-50%,-50%) translate(${options.endX}px,${options.endY}px) scale(${options.scale}) rotate(${options.rotation + options.driftRotation}deg)`, offset: 0.65 },
+          { opacity: 0, transform: `translate(-50%,-50%) translate(${options.endX + options.side * 10}px,${options.endY - 12}px) scale(${options.scale * 0.96}) rotate(${options.rotation + options.driftRotation + 4}deg)` },
+        ],
+    { duration: options.reducedMotion ? 160 : options.duration, delay: options.delay, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'both' },
+  );
+  trackAnimatedElement(sticker, stickerAnimations, animation);
+}
+
+function spawnStickerBurst() {
+  const reducedMotion = prefersReducedMotion();
+  const stickerCount = 2 + Math.floor(Math.random() * 2);
+  makeRoom(stickerAnimations, MAX_STICKERS, stickerCount);
+
+  const radius = elements.button.offsetWidth / 2;
+  createSticker('+1', {
+    isPlus: true,
+    reducedMotion,
+    startX: randomBetween(-radius * 0.08, radius * 0.08),
+    startY: -radius * 0.66,
+    endX: randomBetween(-15, 15),
+    endY: -radius * randomBetween(1.28, 1.42),
+    side: 0,
+    rotation: randomBetween(-9, 9),
+    driftRotation: randomBetween(-5, 5),
+    scale: randomBetween(0.88, 1.04),
+    duration: randomBetween(620, 800),
+    delay: 0,
+  });
+
+  const paths = [
+    { side: -1, startX: -radius * 0.36, startY: -radius * 0.55, endX: -radius * randomBetween(0.72, 0.82), endY: -radius * randomBetween(1.1, 1.22) },
+    { side: 0, startX: randomBetween(-radius * 0.16, radius * 0.16), startY: -radius * 0.72, endX: randomBetween(-radius * 0.16, radius * 0.16), endY: -radius * randomBetween(1.34, 1.46) },
+    { side: 1, startX: radius * 0.36, startY: -radius * 0.55, endX: radius * randomBetween(0.72, 0.82), endY: -radius * randomBetween(1.1, 1.22) },
+  ];
+  const extraCount = stickerCount - 1;
+  for (let index = 0; index < extraCount; index += 1) {
+    const pathIndex = Math.floor(Math.random() * paths.length);
+    const path = paths.splice(pathIndex, 1)[0];
+    const isWord = Math.random() < STICKER_WORD_PROBABILITY;
+    createSticker(isWord ? '啪！' : EMOJIS[Math.floor(Math.random() * EMOJIS.length)], {
+      ...path,
+      isWord,
+      reducedMotion,
+      rotation: randomBetween(-14, 14),
+      driftRotation: randomBetween(-9, 9),
+      scale: randomBetween(0.82, 1.12),
+      duration: randomBetween(600, 900),
+      delay: randomBetween(12, 46),
+    });
+  }
 }
 
 function playFeedback() {
@@ -186,7 +260,8 @@ function playFeedback() {
   elements.buttonStage.classList.add('is-energized');
   window.clearTimeout(haloTimer);
   haloTimer = window.setTimeout(() => elements.buttonStage.classList.remove('is-energized'), 250);
-  showTapFeedback();
+  spawnShockwave();
+  spawnStickerBurst();
   if (!reducedMotion && typeof navigator.vibrate === 'function') navigator.vibrate(12);
 }
 

@@ -94,6 +94,7 @@ h1 {
   width: clamp(220px, 75vw, 300px);
   aspect-ratio: 1;
   place-items: center;
+  overflow: visible;
   isolation: isolate;
 }
 
@@ -115,6 +116,7 @@ h1 {
 
 .boom-button {
   position: relative;
+  z-index: 1;
   display: flex;
   width: clamp(188px, 66vw, 254px);
   aspect-ratio: 1;
@@ -167,31 +169,62 @@ h1 {
   text-indent: .18em;
 }
 
-.tap-feedback {
+.sticker-layer {
   position: absolute;
   z-index: 2;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.shockwave {
+  position: absolute;
+  z-index: 0;
   top: 50%;
   left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
+  border: 1.5px solid rgba(39, 35, 28, .17);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(226, 187, 84, .09);
   pointer-events: none;
   will-change: transform, opacity;
 }
 
-.feedback-emoji {
-  font-size: 27px;
+.sticker-chip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  min-width: 50px;
+  min-height: 46px;
+  place-items: center;
+  padding: 7px 10px;
+  border: 2.5px solid #22211d;
+  border-radius: 10px;
+  background: linear-gradient(150deg, #ffe99e 0%, #f8d66f 70%, #f0c552 100%);
+  box-shadow: 0 3px 0 #c49a3b, 0 7px 12px rgba(37, 32, 24, .17), inset 0 1px 0 rgba(255, 255, 255, .62);
+  color: #211f1a;
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  font-size: 28px;
+  font-weight: 900;
   line-height: 1;
-  filter: drop-shadow(0 1px 4px rgba(246, 243, 235, .72));
+  text-align: center;
+  user-select: none;
+  pointer-events: none;
+  transform-origin: center;
+  will-change: transform, opacity;
 }
 
-.feedback-plus {
-  color: var(--red);
-  font-size: 12px;
-  font-weight: 800;
-  text-shadow: 0 1px 5px var(--paper);
+.sticker-chip.sticker-plus {
+  min-width: 48px;
+  min-height: 38px;
+  padding: 5px 9px;
+  border-radius: 9px;
+  font-family: 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+  font-size: 18px;
+  letter-spacing: -.04em;
 }
+
+.sticker-chip.sticker-word { min-width: 58px; font-size: 18px; letter-spacing: .02em; }
 
 .counter-number {
   min-width: 2ch;
