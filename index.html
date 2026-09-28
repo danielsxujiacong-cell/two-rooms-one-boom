@@ -3,91 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#f3efe5" />
-    <meta name="description" content="两室一弹 · 10月5日游戏夜。每一次按下，全球总数原子加一。" />
-    <title>两室一弹 · 10月5日游戏夜</title>
+    <meta name="theme-color" content="#f6f3eb" />
+    <meta name="description" content="两室一弹 · 10月5日" />
+    <title>两室一弹 · 10月5日</title>
   </head>
   <body>
-    <div class="paper-grain" aria-hidden="true"></div>
-    <main class="poster">
+    <main class="poster" aria-labelledby="main-title">
       <header class="masthead">
-        <div class="identity">
-          <span class="seal" aria-hidden="true"><span>两</span></span>
-          <div class="identity-copy">
-            <p class="wordmark">两室一弹</p>
-            <p class="event-date">10月5日 <span aria-hidden="true">·</span> 游戏之夜</p>
-          </div>
-        </div>
-        <div class="file-stamp">
-          <span class="stamp-dot" aria-hidden="true"></span>
-          <span>聚会档案</span>
-          <span class="stamp-number">档案 10—05</span>
-        </div>
+        <h1 id="main-title">两室一弹</h1>
+        <p class="event-date"><span class="date-dot date-dot-red" aria-hidden="true"></span>10月5日<span class="date-dot date-dot-blue" aria-hidden="true"></span></p>
       </header>
-      <div class="team-rule" aria-hidden="true">
-        <span class="rule-blue"></span>
-        <span class="rule-center">两间房 · 一颗炸弹</span>
-        <span class="rule-red"></span>
-      </div>
-      <div class="showcase">
-        <section class="story" aria-labelledby="main-title">
-          <p class="eyebrow"><span class="eyebrow-mark" aria-hidden="true">✳</span> 一场还没开始的游戏</p>
-          <h1 id="main-title">总统正在躲藏，<br /><span>炸弹客已经就位。</span></h1>
-          <p class="invitation">在他们见面之前，<strong>先按一下。</strong></p>
-          <div class="countdown-panel" id="countdown-panel" aria-live="polite">
-            <span class="countdown-symbol" aria-hidden="true">◷</span>
-            <div class="countdown-copy">
-              <p class="countdown-label" id="countdown-label">距离游戏开始还有</p>
-              <p class="countdown-value" id="countdown-value">—天 —小时 —分</p>
-            </div>
-            <span class="countdown-mark" aria-hidden="true">10·05</span>
-          </div>
-        </section>
-        <section class="game-card" aria-label="全球共享按下计数">
-          <div class="card-orbit orbit-one" aria-hidden="true"></div>
-          <div class="card-orbit orbit-two" aria-hidden="true"></div>
-          <span class="corner-code corner-top" aria-hidden="true">游戏之夜 · 10月5日</span>
-          <span class="corner-code corner-bottom" aria-hidden="true">蓝队 / 红队</span>
-          <div class="teams" aria-hidden="true">
-            <div class="team team-blue">
-              <span class="team-orb"></span>
-              <span class="team-name">蓝队</span>
-              <span class="team-room">一号房</span>
-            </div>
-            <span class="versus">对</span>
-            <div class="team team-red">
-              <span class="team-orb"></span>
-              <span class="team-name">红队</span>
-              <span class="team-room">二号房</span>
-            </div>
-          </div>
-          <div class="button-stage" id="button-stage">
-            <span class="side-flash flash-blue" aria-hidden="true"></span>
-            <span class="side-flash flash-red" aria-hidden="true"></span>
-            <div class="button-halo" aria-hidden="true"></div>
-            <button class="boom-button" id="boom-button" type="button" aria-label="按下炸弹，全球共享计数加一" aria-describedby="button-help" disabled>
-              <span class="bomb-icon" aria-hidden="true">💣</span>
-              <span class="button-title">按下炸弹</span>
-              <span class="button-subtitle">全球一起加一</span>
-            </button>
-            <div class="particle-field" id="particle-field" aria-hidden="true"></div>
-            <span class="plus-one" id="plus-one" aria-hidden="true">+1</span>
-            <span class="impact-burst" id="impact-burst" aria-hidden="true">💥</span>
-          </div>
-          <div class="counter-block">
-            <div class="counter-row" aria-live="polite" aria-atomic="true">
-              <span class="counter-number is-loading" id="counter-value" aria-label="正在读取全球计数" aria-busy="true"><span class="loading-skeleton" aria-hidden="true"></span></span>
-              <span class="counter-unit">次按下</span>
-            </div>
-            <p class="connection-note" id="connection-note" role="status">正在重新连接……</p>
-            <p class="button-help" id="button-help">所有人共用同一个数字</p>
-          </div>
-        </section>
-      </div>
-      <footer class="footer">
-        <span>一间房藏着总统，另一间房等着爆炸。</span>
-        <span class="footer-seal"><i aria-hidden="true"></i> 全员参与 · 全球共数</span>
-      </footer>
+
+      <section class="countdown" aria-label="游戏倒计时">
+        <p class="countdown-label" id="countdown-label">距离游戏开始还有</p>
+        <p class="countdown-value" id="countdown-value" aria-live="off">—天 —小时 —分 —秒</p>
+      </section>
+
+      <section class="boom-area" aria-label="全球共享按下计数">
+        <div class="button-stage" id="button-stage">
+          <button class="boom-button" id="boom-button" type="button" aria-label="按下炸弹，全球共享计数加一" disabled>
+            <span class="bomb-icon" aria-hidden="true">💣</span>
+            <span class="button-title" aria-hidden="true">按下</span>
+          </button>
+        </div>
+        <p class="counter-number is-loading" id="counter-value" aria-label="正在读取全球计数" aria-live="polite" aria-atomic="true" aria-busy="true">—</p>
+        <p class="counter-unit">次按下</p>
+        <p class="visually-hidden" id="connection-note" role="status" aria-live="polite"></p>
+      </section>
     </main>
     <script type="module" src="/src/main.js"></script>
   </body>

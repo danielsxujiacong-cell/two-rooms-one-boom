@@ -2,30 +2,32 @@ import { createClient } from '@supabase/supabase-js';
 import './styles.css';
 
 const GAME_START = new Date('2026-10-05T00:00:00+08:00').getTime();
-const MIN_CLICK_INTERVAL = 350;
 const CONNECTION_RETRY_MS = 4500;
 const COUNTER_POLL_MS = 18000;
+const MAX_FEEDBACKS = 12;
+const EMOJIS = ['💥', '💣', '🔥', '✨', '⚡️', '🎉'];
 const elements = {
-  card: document.querySelector('.game-card'),
   button: document.querySelector('#boom-button'),
   buttonStage: document.querySelector('#button-stage'),
   connection: document.querySelector('#connection-note'),
-  countdownLabel: document.querySelector('#countdown-label'),
-  countdownPanel: document.querySelector('#countdown-panel'),
   countdownValue: document.querySelector('#countdown-value'),
   counter: document.querySelector('#counter-value'),
-  particles: document.querySelector('#particle-field'),
-  plusOne: document.querySelector('#plus-one'),
-  impact: document.querySelector('#impact-burst'),
 };
 
 let supabase = null;
 let hasCloudCount = false;
-let lastClickAt = Number.NEGATIVE_INFINITY;
 let retryTimer = null;
 let pollTimer = null;
 let confirmedCount = null;
 let channel = null;
+let buttonMotion = null;
+let counterMotion = null;
+let haloTimer = null;
+const feedbackAnimations = new Map();
+
+function prefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
 
 function safeAnonymousKey(key) {
   if (!key || key.startsWith('sb_secret_')) return false;
@@ -69,12 +71,28 @@ function parseCount(value) {
 }
 
 function showConnectionNote(visible) {
-  elements.connection.hidden = !visible;
+  elements.connection.textContent = visible ? '全球计数暂时无法连接，正在重试。' : '';
+}
+
+function animateCounter() {
+  if (prefersReducedMotion()) return;
+  const currentTransform = getComputedStyle(elements.counter).transform;
+  counterMotion?.cancel();
+  counterMotion = elements.counter.animate(
+    [
+      { transform: currentTransform === 'none' ? 'scale(1)' : currentTransform },
+      { transform: 'scale(1.12)', offset: 0.42 },
+      { transform: 'scale(.98)', offset: 0.7 },
+      { transform: 'scale(1)' },
+    ],
+    { duration: 390, easing: 'cubic-bezier(.2,.8,.2,1)' },
+  );
 }
 
 function renderCount(value) {
   const parsed = parseCount(value);
   if (parsed === null) return false;
+  const changed = confirmedCount !== null && parsed > confirmedCount;
   confirmedCount = confirmedCount === null || parsed > confirmedCount ? parsed : confirmedCount;
   elements.counter.textContent = new Intl.NumberFormat('zh-CN').format(confirmedCount);
   elements.counter.classList.remove('is-loading');
@@ -82,56 +100,94 @@ function renderCount(value) {
   elements.counter.setAttribute('aria-label', '全球共按下 ' + elements.counter.textContent + ' 次');
   hasCloudCount = true;
   elements.button.disabled = false;
+  if (changed) animateCounter();
   return true;
 }
 
 function updateCountdown() {
-  const remaining = GAME_START - Date.now();
-  if (remaining <= 0) {
-    elements.countdownLabel.textContent = '💥 游戏开始！';
-    elements.countdownValue.textContent = '总统与炸弹客，准备见面。';
-    elements.countdownPanel.classList.add('is-started');
-    return;
-  }
-  const totalMinutes = Math.floor(remaining / 60000);
-  const days = Math.floor(totalMinutes / 1440);
-  const hours = Math.floor((totalMinutes % 1440) / 60);
-  const minutes = totalMinutes % 60;
-  elements.countdownValue.textContent = days + '天 ' + String(hours).padStart(2, '0') + '小时 ' + String(minutes).padStart(2, '0') + '分';
+  const remainingSeconds = Math.max(0, Math.floor((GAME_START - Date.now()) / 1000));
+  const days = Math.floor(remainingSeconds / 86400);
+  const hours = Math.floor((remainingSeconds % 86400) / 3600);
+  const minutes = Math.floor((remainingSeconds % 3600) / 60);
+  const seconds = remainingSeconds % 60;
+  elements.countdownValue.textContent = days + '天 ' + String(hours).padStart(2, '0') + '小时 ' + String(minutes).padStart(2, '0') + '分 ' + String(seconds).padStart(2, '0') + '秒';
 }
 
-function makeParticles() {
-  const colors = ['#283f7d', '#c53b34', '#dfb952', '#191a1b', '#8e3330', '#4368ab', '#f3efe5'];
-  for (let index = 0; index < colors.length; index += 1) {
-    const particle = document.createElement('span');
-    const angle = ((index / colors.length) * Math.PI * 2) - Math.PI / 2;
-    const distance = 47 + ((index % 3) * 12);
-    particle.className = 'particle';
-    particle.style.setProperty('--dx', (Math.cos(angle) * distance) + 'px');
-    particle.style.setProperty('--dy', (Math.sin(angle) * distance) + 'px');
-    particle.style.setProperty('--particle-color', colors[index]);
-    particle.style.setProperty('--particle-delay', ((index % 3) * 12) + 'ms');
-    elements.particles.append(particle);
-    particle.addEventListener('animationend', () => particle.remove(), { once: true });
-  }
+function removeFeedback(element) {
+  feedbackAnimations.get(element)?.cancel();
+  feedbackAnimations.delete(element);
+  element.remove();
 }
 
-function replayAnimation(element, className) {
-  element.classList.remove(className);
-  void element.offsetWidth;
-  element.classList.add(className);
+function showTapFeedback() {
+  while (feedbackAnimations.size >= MAX_FEEDBACKS) {
+    removeFeedback(feedbackAnimations.keys().next().value);
+  }
+
+  const feedback = document.createElement('span');
+  feedback.className = 'tap-feedback';
+  feedback.setAttribute('aria-hidden', 'true');
+
+  const emoji = document.createElement('span');
+  emoji.className = 'feedback-emoji';
+  emoji.textContent = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+  const plusOne = document.createElement('span');
+  plusOne.className = 'feedback-plus';
+  plusOne.textContent = '+1';
+  feedback.append(emoji, plusOne);
+  elements.buttonStage.append(feedback);
+
+  const reducedMotion = prefersReducedMotion();
+  const angle = Math.random() * Math.PI * 2;
+  const distance = 44 + Math.random() * 46;
+  const dx = Math.round(Math.cos(angle) * distance);
+  const dy = Math.round(Math.sin(angle) * distance - 9);
+  const rotation = Math.round((Math.random() - 0.5) * 34);
+  const startRotation = Math.round((Math.random() - 0.5) * 14);
+  const animation = feedback.animate(
+    reducedMotion
+      ? [{ opacity: 0 }, { opacity: 1, offset: 0.25 }, { opacity: 0 }]
+      : [
+          { opacity: 0, transform: `translate(-50%,-50%) translate(0,5px) scale(.68) rotate(${startRotation}deg)` },
+          { opacity: 1, transform: `translate(-50%,-50%) translate(${Math.round(dx * 0.28)}px,${Math.round(dy * 0.28)}px) scale(1.14) rotate(${Math.round(rotation * 0.4)}deg)`, offset: 0.24 },
+          { opacity: 1, transform: `translate(-50%,-50%) translate(${dx}px,${dy}px) scale(1) rotate(${rotation}deg)`, offset: 0.5 },
+          { opacity: 0, transform: `translate(-50%,-50%) translate(${Math.round(dx * 1.2)}px,${dy - 22}px) scale(.96) rotate(${rotation + startRotation}deg)` },
+        ],
+    { duration: reducedMotion ? 180 : 760, easing: 'cubic-bezier(.18,.7,.25,1)', fill: 'both' },
+  );
+  feedbackAnimations.set(feedback, animation);
+  animation.onfinish = () => removeFeedback(feedback);
+  animation.oncancel = () => {
+    feedbackAnimations.delete(feedback);
+    feedback.remove();
+  };
 }
 
 function playFeedback() {
-  replayAnimation(elements.card, 'is-tapped');
-  replayAnimation(elements.buttonStage, 'is-impacting');
-  replayAnimation(elements.plusOne, 'is-rising');
-  replayAnimation(elements.impact, 'is-bursting');
-  replayAnimation(elements.button, 'is-pressed');
-  makeParticles();
-  if (typeof navigator.vibrate === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    navigator.vibrate(16);
-  }
+  const currentTransform = getComputedStyle(elements.button).transform;
+  buttonMotion?.cancel();
+  const reducedMotion = prefersReducedMotion();
+  buttonMotion = elements.button.animate(
+    reducedMotion
+      ? [
+          { transform: currentTransform === 'none' ? 'translateY(0) scale(1)' : currentTransform },
+          { transform: 'translateY(2px) scale(.99)', offset: 0.45 },
+          { transform: 'translateY(0) scale(1)' },
+        ]
+      : [
+          { transform: currentTransform === 'none' ? 'translateY(0) scale(1)' : currentTransform },
+          { transform: 'translateY(7px) scale(.965)', offset: 0.34 },
+          { transform: 'translateY(-1px) scale(1.012)', offset: 0.68 },
+          { transform: 'translateY(0) scale(1)' },
+        ],
+    { duration: reducedMotion ? 160 : 440, easing: 'cubic-bezier(.2,.8,.2,1)' },
+  );
+
+  elements.buttonStage.classList.add('is-energized');
+  window.clearTimeout(haloTimer);
+  haloTimer = window.setTimeout(() => elements.buttonStage.classList.remove('is-energized'), 250);
+  showTapFeedback();
+  if (!reducedMotion && typeof navigator.vibrate === 'function') navigator.vibrate(12);
 }
 
 function scheduleReconnect() {
@@ -190,9 +246,6 @@ async function connectAndRead() {
 
 async function submitClick() {
   if (!hasCloudCount || !supabase) return;
-  const now = performance.now();
-  if (now - lastClickAt < MIN_CLICK_INTERVAL) return;
-  lastClickAt = now;
   playFeedback();
   try {
     const { data, error } = await supabase.rpc('increment_two_rooms_boom');
