@@ -40,6 +40,113 @@ button { font: inherit; }
   text-align: center;
 }
 
+.about-button {
+  position: fixed;
+  z-index: 5;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #a39f96;
+  cursor: pointer;
+  font-size: 19px;
+  line-height: 1;
+  transition: color 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.about-button:hover,
+.about-button:active { color: #5d5a53; }
+.about-button:focus-visible { outline: 2px solid rgba(63, 97, 146, .55); outline-offset: 2px; }
+
+.about-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(320px, calc(100vw - 32px));
+  max-height: calc(100dvh - 28px);
+  overflow-y: auto;
+  margin: auto;
+  padding: 28px 22px 20px;
+  border: 1px solid rgba(58, 53, 43, .1);
+  border-radius: 20px;
+  background: #fbf8f0;
+  box-shadow: 0 22px 64px rgba(35, 31, 24, .17);
+  color: var(--ink);
+  text-align: center;
+  opacity: 0;
+  transform: translateY(4px) scale(.975);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.about-dialog.is-visible { opacity: 1; transform: translateY(0) scale(1); }
+
+.about-dialog::backdrop {
+  background: rgba(34, 32, 28, 0);
+  transition: background-color 160ms ease;
+}
+
+.about-dialog.is-visible::backdrop { background: rgba(34, 32, 28, .24); }
+
+.about-close {
+  position: absolute;
+  top: 10px;
+  right: 11px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #8b877f;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  transition: color 150ms ease;
+}
+
+.about-close:hover,
+.about-close:active { color: var(--ink); }
+
+.about-dialog h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.about-description {
+  margin: 11px 0 0;
+  color: #5f5b53;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.about-qr {
+  display: block;
+  width: auto;
+  height: min(408px, max(120px, calc(100dvh - 224px)));
+  max-width: min(232px, calc(100vw - 72px));
+  margin: 15px auto 0;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.about-qr-caption {
+  margin: 10px 0 0;
+  color: #77736a;
+  font-size: 13px;
+  letter-spacing: .08em;
+}
+
 .masthead { display: grid; justify-items: center; }
 
 h1 {

@@ -15,6 +15,7 @@ const STICKER_LIFETIME_MS = 5000;
 const STICKER_FADE_START_MS = 4500;
 const STICKER_FADE_MS = 500;
 const FULL_TURN = Math.PI * 2;
+const ABOUT_CLOSE_TRANSITION_MS = 170;
 const elements = {
   button: document.querySelector('#boom-button'),
   buttonStage: document.querySelector('#button-stage'),
@@ -22,6 +23,9 @@ const elements = {
   countdownValue: document.querySelector('#countdown-value'),
   counter: document.querySelector('#counter-value'),
   stickerLayer: document.querySelector('#sticker-layer'),
+  aboutButton: document.querySelector('#about-button'),
+  aboutDialog: document.querySelector('#about-dialog'),
+  aboutClose: document.querySelector('#about-close'),
 };
 
 let supabase = null;
@@ -33,6 +37,8 @@ let channel = null;
 let buttonMotion = null;
 let counterMotion = null;
 let haloTimer = null;
+let aboutCloseTimer = null;
+let aboutClosing = false;
 const activeStickers = new Map();
 const shockwaveAnimations = new Map();
 const recentDirections = [];
@@ -40,6 +46,27 @@ let stickerFrameId = 0;
 
 function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function openAbout() {
+  if (elements.aboutDialog.open) return;
+  aboutClosing = false;
+  elements.aboutDialog.showModal();
+  window.requestAnimationFrame(() => {
+    if (elements.aboutDialog.open && !aboutClosing) elements.aboutDialog.classList.add('is-visible');
+  });
+}
+
+function closeAbout() {
+  if (!elements.aboutDialog.open || aboutClosing) return;
+  aboutClosing = true;
+  elements.aboutDialog.classList.remove('is-visible');
+  window.clearTimeout(aboutCloseTimer);
+  if (prefersReducedMotion()) {
+    elements.aboutDialog.close();
+    return;
+  }
+  aboutCloseTimer = window.setTimeout(() => elements.aboutDialog.close(), ABOUT_CLOSE_TRANSITION_MS);
 }
 
 function safeAnonymousKey(key) {
@@ -442,6 +469,20 @@ async function submitClick() {
 }
 
 elements.button.addEventListener('click', submitClick);
+elements.aboutButton.addEventListener('click', openAbout);
+elements.aboutClose.addEventListener('click', closeAbout);
+elements.aboutDialog.addEventListener('click', (event) => {
+  if (event.target === elements.aboutDialog) closeAbout();
+});
+elements.aboutDialog.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  closeAbout();
+});
+elements.aboutDialog.addEventListener('close', () => {
+  window.clearTimeout(aboutCloseTimer);
+  aboutClosing = false;
+  elements.aboutDialog.classList.remove('is-visible');
+});
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && supabase) void readCount();
 });

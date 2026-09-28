@@ -9,6 +9,7 @@
   </head>
   <body>
     <main class="poster" aria-labelledby="main-title">
+      <button class="about-button" id="about-button" type="button" aria-label="关于" aria-haspopup="dialog" aria-controls="about-dialog">ⓘ</button>
       <header class="masthead">
         <h1 id="main-title">两室一弹</h1>
         <p class="event-date"><span class="date-dot date-dot-red" aria-hidden="true"></span>10月5日<span class="date-dot date-dot-blue" aria-hidden="true"></span></p>
@@ -32,6 +33,13 @@
         <p class="visually-hidden" id="connection-note" role="status" aria-live="polite"></p>
       </section>
     </main>
+    <dialog class="about-dialog" id="about-dialog" aria-labelledby="about-title">
+      <button class="about-close" id="about-close" type="button" aria-label="关闭关于窗口">×</button>
+      <h2 id="about-title">关于</h2>
+      <p class="about-description">这是为 10 月 5 日《两室一弹》做的小网页。</p>
+      <img class="about-qr" src="%BASE_URL%group-qr.png" alt="群聊二维码" />
+      <p class="about-qr-caption">扫码加入群聊</p>
+    </dialog>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
