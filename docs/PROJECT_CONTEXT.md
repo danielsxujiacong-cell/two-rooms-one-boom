@@ -13,7 +13,7 @@
 
 - 倒计时以 Asia/Shanghai 的 2026-10-05 00:00 为游戏开始时刻。
 - 首次数据库建立时按需求示例从 12,847 开始；SQL 重复运行不会把已建立的数字重置。
-- PostgreSQL bigint 计数通过安全定义的 increment_boom 函数递增，前端不执行读取后加一再写回。
+- PostgreSQL bigint 计数仅使用 `public.two_rooms_boom_counter` 表，通过安全定义的 `increment_two_rooms_boom` 函数递增；前端不执行读取后加一再写回。复用既有 Supabase 项目时不得改动其他业务表、函数或策略。
 - 表启用 RLS，仅向 anon 提供读取权限；浏览器禁用登录会话持久化。公开配置只接受 anon JWT 或 publishable key。
 - 密钥通过本地未跟踪的 .env.local 或 GitHub Actions secrets 注入。仓库中仅保留占位模板。
 - Realtime 连接不稳定时，使用 REST 读取与间隔刷新，并显示小型重连提示。

@@ -6,7 +6,7 @@
 
 ## 状态
 
-- 阶段：V1 网页已上线；全球计数等待 Supabase 项目配置与线上验收。
+- 阶段：V1 已接入现有 Supabase 项目的独立计数表，待本次代码发布后完成线上验收。
 - 主交付：GitHub Pages 上的互动网页。
 - 计数只从云端读取；未连接时显示加载占位和重连提示，不使用浏览器本地假计数。
 
@@ -14,14 +14,14 @@
 
 1. 安装 Node.js 22 或更新版本。
 2. 将 .env.example 复制为 .env.local。
-3. 填入 Supabase 项目网址和 anon 或 publishable 公开密钥。
+3. 填入 Supabase 项目网址和 anon 或 publishable 公开密钥（已配置 lanlan-cloud-pet 时不会触碰其他业务表）。
 4. 执行 npm install，然后执行 npm run dev。
 
 如果尚无 Supabase 配置，公网网页仍能打开并显示倒计时；共享计数保持加载状态，按钮不会伪造按下结果。
 
 ## 首次部署步骤
 
-1. 在 Supabase 创建项目，在 SQL Editor 中运行 supabase/setup.sql。
+1. 在 Supabase 项目的 SQL Editor 中运行 supabase/setup.sql；该脚本只创建两室一弹专用的 `two_rooms_boom_counter` 表和 `increment_two_rooms_boom()` 原子递增函数。
 2. 在 GitHub 仓库设置的 Actions secrets 中添加 VITE_SUPABASE_URL 与 VITE_SUPABASE_ANON_KEY。
 3. 启用 GitHub Pages 的 Actions 发布来源；推送至 main 会自动发布。
 

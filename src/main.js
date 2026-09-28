@@ -142,7 +142,7 @@ function scheduleReconnect() {
 async function readCount() {
   if (!supabase) return false;
   const { data, error } = await supabase
-    .from('boom_counter')
+    .from('two_rooms_boom_counter')
     .select('total_count')
     .eq('id', 1)
     .single();
@@ -153,10 +153,10 @@ async function readCount() {
 function watchRealtime() {
   if (!supabase || channel) return;
   channel = supabase
-    .channel('shared-boom-counter')
+    .channel('two-rooms-shared-boom-counter')
     .on(
       'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'boom_counter', filter: 'id=eq.1' },
+      { event: 'UPDATE', schema: 'public', table: 'two_rooms_boom_counter', filter: 'id=eq.1' },
       (payload) => renderCount(payload.new.total_count),
     )
     .subscribe((status) => {
@@ -195,7 +195,7 @@ async function submitClick() {
   lastClickAt = now;
   playFeedback();
   try {
-    const { data, error } = await supabase.rpc('increment_boom');
+    const { data, error } = await supabase.rpc('increment_two_rooms_boom');
     if (error || !renderCount(data)) throw error || new Error('云端没有返回计数');
     showConnectionNote(false);
   } catch {
