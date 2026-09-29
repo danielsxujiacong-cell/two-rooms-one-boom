@@ -303,18 +303,20 @@ h1 {
   top: 50%;
   left: 50%;
   display: grid;
-  min-width: 50px;
-  min-height: 46px;
+  min-width: 40px;
+  min-height: 37px;
   place-items: center;
-  padding: 7px 10px;
-  border: 2.5px solid #22211d;
-  border-radius: 10px;
-  background: linear-gradient(150deg, #ffe99e 0%, #f8d66f 70%, #f0c552 100%);
-  box-shadow: 0 3px 0 #c49a3b, 0 7px 12px rgba(37, 32, 24, .17), inset 0 1px 0 rgba(255, 255, 255, .62);
+  padding: 5px 7px;
+  border: 1.5px solid rgba(48, 45, 38, .72);
+  border-radius: 9px;
+  background:
+    repeating-linear-gradient(0deg, rgba(86, 75, 54, .025) 0 1px, transparent 1px 4px),
+    linear-gradient(145deg, #f3ecd9 0%, #e9dfc7 100%);
+  box-shadow: 0 1px 0 rgba(135, 116, 80, .18), 0 4px 9px rgba(37, 32, 24, .1), inset 0 1px 0 rgba(255, 255, 255, .56);
   color: #211f1a;
   font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
-  font-size: 28px;
-  font-weight: 900;
+  font-size: 22px;
+  font-weight: 750;
   line-height: 1;
   text-align: center;
   user-select: none;
@@ -324,16 +326,27 @@ h1 {
 }
 
 .sticker-chip.sticker-plus {
-  min-width: 48px;
-  min-height: 38px;
-  padding: 5px 9px;
-  border-radius: 9px;
+  min-width: 40px;
+  min-height: 32px;
+  padding: 4px 7px;
+  border-radius: 8px;
   font-family: 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
-  font-size: 18px;
+  font-size: 16px;
   letter-spacing: -.04em;
 }
 
-.sticker-chip.sticker-word { min-width: 58px; font-size: 18px; letter-spacing: .02em; }
+.sticker-chip.sticker-word { min-width: 48px; font-size: 16px; letter-spacing: .02em; }
+
+.sticker-chip.sticker-plz {
+  min-width: 68px;
+  min-height: 34px;
+  padding: 4px 7px;
+  font-family: 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .015em;
+  white-space: nowrap;
+}
 
 .counter-number {
   min-width: 2ch;

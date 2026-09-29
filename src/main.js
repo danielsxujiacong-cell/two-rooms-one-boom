@@ -4,17 +4,17 @@ import './styles.css';
 const GAME_START = new Date('2026-10-05T00:00:00+08:00').getTime();
 const CONNECTION_RETRY_MS = 4500;
 const COUNTER_POLL_MS = 18000;
-const MAX_STICKERS = 8;
+const MAX_STICKERS = 4;
 const MAX_SHOCKWAVES = 3;
-const EMOJIS = ['💥', '💣', '🔥', '✨', '⚡️', '🎉'];
+const EMOJIS = ['💥', '⚡', '🔥'];
 const STICKER_WORD_PROBABILITY = 0.12;
-const STICKER_PLUS_PROBABILITY = 0.22;
+const STICKER_PLUS_PROBABILITY = 0.24;
+const STICKER_PLZ_PROBABILITY = 0.16;
 const STICKER_FLIGHT_MS = 1600;
 const STICKER_ARC_MS = 1200;
 const STICKER_LIFETIME_MS = 5000;
 const STICKER_FADE_START_MS = 4500;
 const STICKER_FADE_MS = 500;
-const FULL_TURN = Math.PI * 2;
 const ABOUT_CLOSE_TRANSITION_MS = 170;
 const elements = {
   button: document.querySelector('#boom-button'),
@@ -41,7 +41,6 @@ let aboutCloseTimer = null;
 let aboutClosing = false;
 const activeStickers = new Map();
 const shockwaveAnimations = new Map();
-const recentDirections = [];
 let stickerFrameId = 0;
 
 function prefersReducedMotion() {
@@ -207,25 +206,15 @@ function spawnShockwave() {
   trackAnimatedElement(wave, shockwaveAnimations, animation);
 }
 
-function angularDistance(left, right) {
-  return Math.abs(Math.atan2(Math.sin(left - right), Math.cos(left - right)));
-}
-
 function randomLaunchDirection() {
-  let angle = Math.random() * FULL_TURN;
-  for (let attempt = 0; attempt < 7; attempt += 1) {
-    if (!recentDirections.some((recent) => angularDistance(angle, recent) < 0.52)) break;
-    angle = Math.random() * FULL_TURN;
-  }
-  recentDirections.push(angle);
-  if (recentDirections.length > MAX_STICKERS) recentDirections.shift();
-  return angle;
+  return -Math.PI / 2 + randomBetween(-Math.PI / 6, Math.PI / 6);
 }
 
 function chooseStickerLabel() {
   const roll = Math.random();
   if (roll < STICKER_PLUS_PROBABILITY) return '+1';
   if (roll < STICKER_PLUS_PROBABILITY + STICKER_WORD_PROBABILITY) return '啪！';
+  if (roll < STICKER_PLUS_PROBABILITY + STICKER_WORD_PROBABILITY + STICKER_PLZ_PROBABILITY) return 'PLZ 🙏';
   return EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
 }
 
@@ -311,7 +300,7 @@ function updateStickerFrames(timestamp) {
       } else {
         state.angularVelocity *= Math.exp(-1.8 * deltaTime);
       }
-      state.rotation += state.angularVelocity * deltaTime;
+      state.rotation = Math.max(-12, Math.min(12, state.rotation + state.angularVelocity * deltaTime));
       resolveStickerBoundary(state);
     } else if (!state.settled) {
       state.vx = 0;
@@ -332,7 +321,10 @@ function spawnPhysicalSticker() {
   makeRoom(activeStickers, MAX_STICKERS);
   const label = chooseStickerLabel();
   const sticker = document.createElement('span');
-  sticker.className = 'sticker-chip' + (label === '+1' ? ' sticker-plus' : '') + (label === '啪！' ? ' sticker-word' : '');
+  sticker.className = 'sticker-chip'
+    + (label === '+1' ? ' sticker-plus' : '')
+    + (label === '啪！' ? ' sticker-word' : '')
+    + (label === 'PLZ 🙏' ? ' sticker-plz' : '');
   sticker.textContent = label;
   sticker.setAttribute('aria-hidden', 'true');
   sticker.style.zIndex = String(3 + Math.floor(Math.random() * 3));
@@ -343,27 +335,27 @@ function spawnPhysicalSticker() {
   const centerX = stageRect.left + stageRect.width / 2;
   const centerY = stageRect.top + stageRect.height / 2;
   const direction = randomLaunchDirection();
-  const scale = randomBetween(0.88, 1.1);
+  const scale = randomBetween(0.92, 1.02);
   const bounds = getStickerBounds(sticker, scale, centerX, centerY, stageRect);
   const radius = Math.max(0, buttonRect.width / 2 - randomBetween(2, 8));
   const x = Math.max(bounds.minX, Math.min(bounds.maxX, Math.cos(direction) * radius));
   const y = Math.max(bounds.minY, Math.min(bounds.maxY, Math.sin(direction) * radius));
-  const speed = randomBetween(270, 360);
+  const speed = randomBetween(480, 560);
   const now = performance.now();
-  const rotation = randomBetween(-14, 14);
+  const rotation = randomBetween(-8, 8);
   const state = {
     bounds,
     bounces: 0,
-    gravity: randomBetween(380, 520),
+    gravity: randomBetween(1050, 1250),
     lastUpdate: now,
-    maxBounces: 1 + Math.floor(Math.random() * 2),
+    maxBounces: 1,
     reducedMotion: prefersReducedMotion(),
-    restRotation: rotation + randomBetween(-24, 24),
+    restRotation: randomBetween(-10, 10),
     rotation,
     scale,
     settled: false,
     startedAt: now,
-    angularVelocity: randomBetween(-320, 320),
+    angularVelocity: randomBetween(-18, 18),
     vx: Math.cos(direction) * speed,
     vy: Math.sin(direction) * speed,
     x,
